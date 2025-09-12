@@ -1,14 +1,11 @@
 name: Brave Portable Auto Builder
-
 on:
   schedule:
-    - cron: '0 * * * *'  # Run every hour
+    - cron: '0 0 * * 0'  # Run every Sunday at midnight
   workflow_dispatch:  # Allow manual runs
-
 permissions:
   contents: write
   packages: write
-
 jobs:
   check-and-build:
     runs-on: windows-latest
@@ -85,7 +82,8 @@ jobs:
       shell: powershell
       run: |
         try {
-          $chromePlusRelease = Invoke-RestMethod "https://api.github.com/repos/bibicadotnet/Chromium_SetDLL/releases/latest"
+          # Using original Chrome++ repository by Bush2021
+          $chromePlusRelease = Invoke-RestMethod "https://api.github.com/repos/Bush2021/chrome_plus/releases/latest"
           $chromePlusVersion = $chromePlusRelease.tag_name
           echo "CHROMEPLUS_VERSION=$chromePlusVersion" >> $env:GITHUB_OUTPUT
           Write-Host "Chrome++ version: $chromePlusVersion"
@@ -133,9 +131,10 @@ jobs:
         $portablePath = "$rootPath\Brave"
         $tempDir = "$env:TEMP\BraveBuilder"
         $applicationPath = "C:\Program Files\BraveSoftware\Brave-Browser\Application"
+        $braveVersion = "${{ steps.brave-version.outputs.BRAVE_VERSION }}"
         
-        # Get Chrome++ release info
-        $chromePlusRelease = Invoke-RestMethod "https://api.github.com/repos/bibicadotnet/Chromium_SetDLL/releases/latest"
+        # Get Chrome++ release info from original repository by Bush2021
+        $chromePlusRelease = Invoke-RestMethod "https://api.github.com/repos/Bush2021/chrome_plus/releases/latest"
         $chromePlusDownloadUrl = $chromePlusRelease.assets | Where-Object { $_.name -eq "setdll.7z" } | Select-Object -First 1 -ExpandProperty browser_download_url
         
         # Prepare directories
@@ -167,21 +166,31 @@ jobs:
         Copy-Item "$chromePlusExtractDir\setdll-x64.exe" "$applicationPath\setdll-x64.exe" -Force
         Copy-Item "$chromePlusExtractDir\version-x64.dll" "$applicationPath\version.dll" -Force
         
-        # Apply Chrome++ (rename brave.exe to browser.exe for Chrome++ compatibility)
-        Write-Host "Applying Chrome++..." -ForegroundColor Yellow
+        # Apply Chrome++ to the original brave.exe (keeping original name)
+        Write-Host "Applying Chrome++ to brave.exe..." -ForegroundColor Yellow
         Push-Location $applicationPath
-        Copy-Item "brave.exe" "browser.exe" -Force
-        & ".\setdll-x64.exe" /d:version.dll browser.exe | Out-Null
+        & ".\setdll-x64.exe" /d:version.dll brave.exe | Out-Null
         Pop-Location
         
         # Copy Brave files to portable directory
         Write-Host "Copying Brave files..." -ForegroundColor Yellow
         Copy-Item "$applicationPath\*" $portablePath -Recurse -Force
         
+        # Copy WidevineCdm from the installed Brave location to the portable path
+        Write-Host "Copying WidevineCdm..." -ForegroundColor Yellow
+        $widevineSourcePath = "$applicationPath\$braveVersion\WidevineCdm"
+        $widevineDestPath = "$portablePath\$braveVersion\WidevineCdm"
+        if (Test-Path $widevineSourcePath) {
+          Copy-Item $widevineSourcePath $widevineDestPath -Recurse -Force
+          Write-Host "WidevineCdm copied successfully"
+        } else {
+          Write-Host "WidevineCdm not found at expected location" -ForegroundColor Yellow
+        }
+        
         # Cleanup temp files and Chrome++ installer files
         Remove-Item $tempDir -Recurse -Force
-        Remove-Item "$applicationPath\setdll-x64.exe", "$applicationPath\browser.exe~" -Force -ErrorAction SilentlyContinue
-        Remove-Item "$portablePath\setdll-x64.exe", "$portablePath\browser.exe~" -Force -ErrorAction SilentlyContinue
+        Remove-Item "$applicationPath\setdll-x64.exe", "$applicationPath\brave.exe~" -Force -ErrorAction SilentlyContinue
+        Remove-Item "$portablePath\setdll-x64.exe", "$portablePath\brave.exe~" -Force -ErrorAction SilentlyContinue
         
         Write-Host "Build completed!" -ForegroundColor Green
         
@@ -211,8 +220,8 @@ jobs:
         $chromePlusVersion = "${{ steps.chromeplus-version.outputs.CHROMEPLUS_VERSION }}"
         $archivePath = "${{ steps.create-archive.outputs.ARCHIVE_PATH }}"
         
-        # Create release body
-        $releaseBody = "**Brave Portable with Chrome++ Auto Build**`n`n**Brave Version:** $braveVersion`n**Chrome++ Version:** $chromePlusVersion`n`n## What's Included`n- Brave Browser Portable`n- Chrome++ enhancements`n- Debloated configuration (Brave Shields, Rewards, Wallet, VPN, etc. disabled)`n- Pre-configured settings for privacy and performance`n`n## Installation`n1. Download the ZIP file`n2. Extract to your desired location`n3. Run Brave_Portable\Brave\brave.exe or browser.exe`n`n## Update`n1. Run Brave_Portable\Brave\update.bat`n2. Your settings and chrome++.ini configuration will be preserved`n`n## Features`n- Fully portable - no installation required`n- Enhanced with Chrome++ features`n- Auto-configured for optimal privacy experience`n- Brave features disabled via registry settings`n- Custom extension management`n`n---`n*This release was automatically generated by GitHub Actions*"
+        # Create release body with reference to original Chrome++ repository
+        $releaseBody = "**Brave Portable with Chrome++ Auto Build**`n`n**Brave Version:** $braveVersion`n**Chrome++ Version:** $chromePlusVersion (from https://github.com/Bush2021/chrome_plus)`n`n## What's Included`n- Brave Browser Portable`n- Chrome++ enhancements from the original repository by Bush2021`n- WidevineCdm support for DRM content`n- Debloated configuration (Brave Shields, Rewards, Wallet, VPN, etc. disabled)`n- Pre-configured settings for privacy and performance`n`n## Installation`n1. Download the ZIP file`n2. Extract to your desired location`n3. Run Brave_Portable\Brave\brave.exe`n`n## Update`n1. Run Brave_Portable\Brave\update.bat`n2. Your settings and chrome++.ini configuration will be preserved`n`n## Features`n- Fully portable - no installation required`n- Enhanced with Chrome++ features (original repository: https://github.com/Bush2021/chrome_plus)`n- Auto-configured for optimal privacy experience`n- Brave features disabled via registry settings`n- Custom extension management`n- WidevineCdm included for DRM content playback`n`n---`n*This release was automatically generated by GitHub Actions*"
         
         Write-Host "Creating release: $releaseTag" -ForegroundColor Yellow
         $releaseTitle = "$releaseTag"
