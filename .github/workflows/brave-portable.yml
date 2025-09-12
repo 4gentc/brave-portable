@@ -170,9 +170,19 @@ jobs:
         & ".\setdll-x64.exe" /d:version.dll brave.exe | Out-Null
         Pop-Location
         
+        # Init User Data for WidevineCdm
+        Write-Host "Initializing user data to fetch WidevineCdm..." -ForegroundColor Yellow
+        $userDataDir = "$env:TEMP\BraveUserData"
+        if (Test-Path $userDataDir) { Remove-Item $userDataDir -Recurse -Force }
+        Start-Process -FilePath "$applicationPath\\brave.exe" -ArgumentList "--user-data-dir=`"$userDataDir`" https://www.cloudflare.com" -WindowStyle Hidden
+        Start-Sleep -Seconds 30
+        Get-Process brave -ErrorAction SilentlyContinue | Stop-Process
+        $wvSrc = "$userDataDir\\WidevineCdm"
+        
         # Copy Brave files to portable directory
         Write-Host "Copying Brave files..." -ForegroundColor Yellow
         Copy-Item "$applicationPath\*" $portablePath -Recurse -Force
+        if (Test-Path $wvSrc) { Copy-Item $wvSrc $portablePath -Recurse -Force }
         
         # Cleanup temp files and Chrome++ installer files
         Remove-Item $tempDir -Recurse -Force
