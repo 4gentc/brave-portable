@@ -1,4 +1,7 @@
 Windows Registry Editor Version 5.00
+; Delete existing policy
+[-HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave]
+
 [HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave]
 "TorDisabled"=dword:00000001
 "BraveRewardsDisabled"=dword:00000001
